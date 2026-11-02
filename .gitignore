@@ -1,0 +1,4 @@
+__pycache__
+*.pyc
+trivy-report.txt
+.pytest_cache

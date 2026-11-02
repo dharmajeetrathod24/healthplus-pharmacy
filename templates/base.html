@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HealthPlus Pharmacy</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='hp.css') }}">
+</head>
+<body class="{{ color }}">
+<header>
+  <div class="box bar">
+    <a class="brand" href="/">&#10010; HealthPlus Pharmacy</a>
+    <nav><a href="/">Home</a><a href="/medicines">Medicines</a><a href="/order">Order Online</a></nav>
+    <span class="tag">{% if color != 'none' %}{{ color|upper }} | {% endif %}{{ version }}</span>
+  </div>
+</header>
+{% block content %}{% endblock %}
+<footer>&copy; 2026 HealthPlus Pharmacy | Demo project - fictional data only</footer>
+</body>
+</html>

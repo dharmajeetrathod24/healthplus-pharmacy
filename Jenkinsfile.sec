@@ -1,0 +1,52 @@
+pipeline {
+  agent any
+  environment {
+    IMAGE = "dharma2436/pharmacy"
+    TAG   = "sec-${BUILD_NUMBER}"
+  }
+  stages {
+    stage('Secret Scan - Gitleaks') {
+      steps { sh 'docker run --rm -v $PWD:/repo zricethezav/gitleaks:latest detect --source /repo --no-git -v' }
+    }
+    stage('SAST - Bandit') {
+      steps {
+        sh '''docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -v $PWD:/src -w /src python:3.12-slim sh -c "pip install -q --user bandit && python -m bandit -q -ll app.py"'''
+      }
+    }
+    stage('Dependency Scan - pip-audit') {
+      steps {
+        sh '''docker run --rm -u $(id -u):$(id -g) -e HOME=/tmp -e TMPDIR=/tmp -v $PWD:/src -w /src python:3.12-slim sh -c "pip install -q --user pip-audit && python -m pip_audit -r requirements.txt"'''
+      }
+    }
+    stage('Dockerfile Lint - Hadolint') {
+      steps { sh 'docker run --rm -i -e HADOLINT_FAILURE_THRESHOLD=error hadolint/hadolint < Dockerfile' }
+    }
+    stage('Build Image') {
+      steps { sh 'docker build -t $IMAGE:$TAG .' }
+    }
+    stage('Image Scan - Trivy') {
+      steps {
+        sh 'trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed -o trivy-report.txt $IMAGE:$TAG'
+        sh 'cat trivy-report.txt'
+        sh 'trivy image --scanners vuln --severity CRITICAL --ignore-unfixed --exit-code 1 $IMAGE:$TAG'
+      }
+    }
+    stage('Push Image') {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'U', passwordVariable: 'P')]) {
+          sh 'echo $P | docker login -u $U --password-stdin && docker push $IMAGE:$TAG'
+        }
+      }
+    }
+    stage('Secure Deploy') {
+      steps {
+        sh 'sed -i "s|:IMAGE_TAG|:$TAG|" deploy-sec/app.yaml'
+        sh 'kubectl apply -f deploy-sec/app.yaml'
+        sh 'kubectl -n hp-sec rollout status deployment/pharmacy-secure --timeout=300s'
+      }
+    }
+  }
+  post {
+    always { archiveArtifacts artifacts: 'trivy-report.txt', allowEmptyArchive: true }
+  }
+}

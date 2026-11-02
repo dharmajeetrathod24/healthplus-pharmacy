@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="box"><h2>All Medicines</h2>
+<table>
+<tr><th>Medicine</th><th>Price</th><th>Availability</th></tr>
+{% for m in items %}
+<tr><td>{{ m.name }}</td><td>Rs. {{ m.price }}</td><td>{{ m.stock }}</td></tr>
+{% endfor %}
+</table></section>
+{% endblock %}

@@ -1,0 +1,55 @@
+pipeline {
+  agent any
+  environment {
+    IMAGE = "dharma2436/pharmacy"
+    TAG   = "bg-${BUILD_NUMBER}"
+  }
+  stages {
+    stage('Build & Push') {
+      steps {
+        sh 'docker build -t $IMAGE:$TAG .'
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'U', passwordVariable: 'P')]) {
+          sh 'echo $P | docker login -u $U --password-stdin && docker push $IMAGE:$TAG'
+        }
+      }
+    }
+    stage('Find Live Color') {
+      steps {
+        script {
+          env.LIVE = sh(script: "kubectl -n hp-bg get svc pharmacy-bg-svc -o jsonpath='{.spec.selector.slot}' 2>/dev/null || echo none", returnStdout: true).trim()
+          env.IDLE = (env.LIVE == 'blue') ? 'green' : 'blue'
+          echo "LIVE=${env.LIVE} -> deploying new version to IDLE=${env.IDLE}"
+        }
+      }
+    }
+    stage('Deploy to Idle') {
+      steps {
+        sh '''
+          export COLOR=$IDLE APP_IMAGE=$IMAGE:$TAG APP_TAG=$TAG
+          envsubst '${COLOR} ${APP_IMAGE} ${APP_TAG}' < deploy-bg/template.yaml | kubectl apply -f -
+          kubectl -n hp-bg rollout status deployment/pharmacy-$IDLE --timeout=300s
+        '''
+      }
+    }
+    stage('Health Check Idle') {
+      steps {
+        sh '''
+          for i in 1 2 3 4 5 6; do
+            kubectl -n hp-bg exec deploy/pharmacy-$IDLE -- python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:5000/healthz').read())" && exit 0
+            echo retry $i; sleep 5
+          done
+          exit 1
+        '''
+      }
+    }
+    stage('Switch Traffic') {
+      steps {
+        sh '''
+          export COLOR=$IDLE
+          envsubst '${COLOR}' < deploy-bg/service.yaml | kubectl apply -f -
+        '''
+        echo "Traffic now on ${env.IDLE}. Old ${env.LIVE} kept for instant rollback."
+      }
+    }
+  }
+}

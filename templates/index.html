@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="hero"><div class="box">
+<h1>Your trusted neighbourhood pharmacy</h1>
+<p>Genuine medicines, home delivery and 24x7 support.</p>
+<a class="cta" href="/order">Order Medicines</a>
+</div></div>
+<section class="box"><h2>Featured Medicines</h2>
+<div class="grid">
+{% for m in items %}
+<div class="card"><h3>{{ m.name }}</h3><p>Rs. {{ m.price }}</p><p>{{ m.stock }}</p></div>
+{% endfor %}
+</div></section>
+{% endblock %}

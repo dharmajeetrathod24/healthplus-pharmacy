@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: pharmacy-sa, namespace: hp-sec }
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: pharmacy-secure, namespace: hp-sec }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: pharmacy-secure }
+  template:
+    metadata:
+      labels: { app: pharmacy-secure }
+    spec:
+      serviceAccountName: pharmacy-sa
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+      - name: web
+        image: dharma2436/pharmacy:IMAGE_TAG
+        ports: [{ containerPort: 5000 }]
+        envFrom:
+        - secretRef: { name: db-secret }
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities: { drop: ["ALL"] }
+        resources:
+          requests: { cpu: "50m", memory: "64Mi" }
+          limits: { cpu: "250m", memory: "256Mi" }
+        readinessProbe:
+          httpGet: { path: /healthz, port: 5000 }
+        volumeMounts:
+        - { name: tmp, mountPath: /tmp }
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata: { name: pharmacy-secure-svc, namespace: hp-sec }
+spec:
+  type: NodePort
+  selector: { app: pharmacy-secure }
+  ports:
+  - port: 80
+    targetPort: 5000
+    nodePort: 30086
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: restrict-ingress, namespace: hp-sec }
+spec:
+  podSelector:
+    matchLabels: { app: pharmacy-secure }
+  policyTypes: [Ingress]
+  ingress:
+  - ports:
+    - port: 5000
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: read-pods, namespace: hp-sec }
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: read-pods-bind, namespace: hp-sec }
+subjects:
+- kind: ServiceAccount
+  name: pharmacy-sa
+  namespace: hp-sec
+roleRef:
+  kind: Role
+  name: read-pods
+  apiGroup: rbac.authorization.k8s.io

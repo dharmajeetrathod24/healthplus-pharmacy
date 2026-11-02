@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="box"><h2>Order Online</h2>
+<form onsubmit="event.preventDefault();alert('Thank you! (Demo form - nothing is stored)');this.reset();">
+<label>Name</label><input required placeholder="Your name">
+<label>Medicine</label>
+<select>{% for m in items %}<option>{{ m.name }}</option>{% endfor %}</select>
+<label>Quantity</label><input type="number" min="1" value="1">
+<button type="submit">Place Order</button>
+</form></section>
+{% endblock %}
