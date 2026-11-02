@@ -56,4 +56,3 @@ def api_medicines():
 @app.route("/metrics")
 def metrics():
     return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
-internal_api_key = "q8Xk2LmP9vR4tYz7NwB3cHd6SfJ1aGe5"
